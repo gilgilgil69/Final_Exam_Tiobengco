@@ -1,0 +1,24 @@
+---
+- name: Final Exam Playbook
+  hosts: centos
+  become: true
+
+  tasks:
+    - name: Install Apache web server
+      yum:
+        name: httpd
+        state: present
+
+    - name: Ensure Apache is running and enabled
+      service:
+        name: httpd
+        state: started
+        enabled: true
+
+    - name: Update MOTD
+      copy:
+        content: "Ansible Managed by glenngil"
+        dest: /etc/motd
+
+
+

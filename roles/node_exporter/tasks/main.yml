@@ -1,0 +1,44 @@
+---
+- name: Create node_exporter user
+  user:
+    name: nodeusr
+    shell: /sbin/nologin
+
+- name: Download Node Exporter
+  get_url:
+    url: "{{ node_exporter.download_url }}"
+    dest: /tmp/node_exporter.tar.gz
+
+- name: Extract Node Exporter
+  unarchive:
+    src: /tmp/node_exporter.tar.gz
+    dest: /usr/local/bin/
+    remote_src: yes
+
+- name: Move binary
+  command: mv /usr/local/bin/node_exporter-{{ node_exporter.version }}.linux-amd64/node_exporter /usr/local/bin/node_exporter
+  args:
+    creates: /usr/local/bin/node_exporter
+
+- name: Create systemd service
+  copy:
+    dest: /etc/systemd/system/node_exporter.service
+    content: |
+      [Unit]
+      Description=Prometheus Node Exporter
+      After=network.target
+
+      [Service]
+      User=nodeusr
+      ExecStart=/usr/local/bin/node_exporter
+
+      [Install]
+      WantedBy=default.target
+
+- name: Start Node Exporter Service
+  systemd:
+    name: node_exporter
+    enabled: yes
+    state: started
+    daemon_reload: yes
+
