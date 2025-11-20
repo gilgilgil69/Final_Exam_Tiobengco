@@ -1,0 +1,77 @@
+---
+- name: Setup enterprise and monitoring
+  hosts: all
+  become: yes
+  vars_files:
+    - ./config.yaml
+
+  tasks:
+    - name: Update package manager
+      package:
+        update_cache: yes
+
+    - name: Install Apache
+      package:
+        name: "{{ 'apache2' if ansible_os_family == 'Debian' else 'httpd' }}"
+        state: present
+
+    - name: Download Node Exporter
+      get_url:
+        url: "https://github.com/prometheus/node_exporter/releases/download/v1.10.2/node_exporter-1.10.2.linux-amd64.tar.gz"
+        dest: /tmp/node_exporter.tar.gz
+        mode: '0644'
+      when: monitoring_tool is defined and monitoring_tool == "node_exporter"
+
+    - name: Extract Node Exporter
+      unarchive:
+        src: /tmp/node_exporter.tar.gz
+        dest: /usr/local/bin/
+        remote_src: yes
+        extra_opts: [--strip-components=1]
+      when: monitoring_tool is defined and monitoring_tool == "node_exporter"
+
+    - name: Systemd service
+      copy:
+        dest: /etc/systemd/system/node_exporter.service
+        content: |
+            [Unit]
+            Description=Prometheus Node Exporter
+            After=network.target
+
+            [Service]
+            ExecStart=/usr/local/bin/node_exporter
+            User=nobody
+            Group={{ 'nogroup' if ansible_os_family == 'Debian' else 'nobody' }}
+
+            [Install]
+            WantedBy=multi-user.target
+      when: monitoring_tool is defined and monitoring_tool == "node_exporter"
+
+    - name: Reload systemd daemon to recognize new service file
+      systemd:
+        daemon_reload: yes
+      when: monitoring_tool is defined and monitoring_tool == "node_exporter"
+
+    - name: Start and enable Apache
+      service:
+        name: "{{ 'apache2' if ansible_os_family == 'Debian' else 'httpd' }}"
+        state: started
+        enabled: yes
+
+    - name: Start Node Exporter
+      systemd:
+        name: node_exporter
+        state: started
+        enabled: yes
+      when: monitoring_tool is defined and monitoring_tool == "node_exporter"
+
+    - name: Update MOTD
+      copy:
+        dest: /etc/motd
+        content: "Ansible Managed by {{ motd_user | default('Tiobengco_Glenngil') }}\n"
+        owner: root
+        group: root
+        mode: '0644'
+
+
+
